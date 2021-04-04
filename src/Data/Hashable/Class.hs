@@ -170,10 +170,11 @@ import GHC.Natural (Natural(..))
 #endif
 #endif
 
+import Data.Functor.Classes (Eq1(..),Ord1(..),Show1(..),showsUnaryWith)
+
 #if MIN_VERSION_base(4,9,0)
 import qualified Data.List.NonEmpty as NE
 import Data.Semigroup
-import Data.Functor.Classes (Eq1(..),Ord1(..),Show1(..),showsUnaryWith)
 
 import Data.Functor.Compose (Compose(..))
 import qualified Data.Functor.Product as FP
@@ -190,6 +191,14 @@ import Data.Kind (Type)
 
 #ifdef HASHABLE_RANDOM_SEED
 import System.IO.Unsafe (unsafePerformIO)
+#endif
+
+#ifdef VERSION_base_orphans
+import Data.Orphans ()
+#endif
+
+#ifdef VERSION_ghc_bignum_orphans
+import GHC.Num.Orphans ()
 #endif
 
 #include "MachDeps.h"
@@ -235,7 +244,7 @@ defaultSalt' = -2128831035 -- 2166136261 :: Int32
 -- If you are looking for 'Hashable' instance in @time@ package,
 -- check [time-compat](https://hackage.haskell.org/package/time-compat)
 --
-class Hashable a where
+class Eq a => Hashable a where
     -- | Return a hash value for the argument, using the given salt.
     --
     -- The general contract of 'hashWithSalt' is:
@@ -292,7 +301,7 @@ newtype instance HashArgs One  a = HashArgs1 (Int -> a -> Int)
 class GHashable arity f where
     ghashWithSalt :: HashArgs arity a -> Int -> f a -> Int
 
-class Hashable1 t where
+class Eq1 t => Hashable1 t where
     -- | Lift a hashing function through the type constructor.
     liftHashWithSalt :: (Int -> a -> Int) -> Int -> t a -> Int
 
@@ -624,8 +633,11 @@ instance (Hashable a1, Hashable a2, Hashable a3, Hashable a4, Hashable a5)
     hash (a1, a2, a3, a4, a5) =
         hash a1 `hashWithSalt` a2 `hashWithSalt` a3
         `hashWithSalt` a4 `hashWithSalt` a5
-    hashWithSalt = hashWithSalt1
+    hashWithSalt s (a1, a2, a3, a4, a5) =
+        s `hashWithSalt` a1 `hashWithSalt` a2 `hashWithSalt` a3
+        `hashWithSalt` a4 `hashWithSalt` a5
 
+{-
 instance (Hashable a1, Hashable a2, Hashable a3,
           Hashable a4) => Hashable1 ((,,,,) a1 a2 a3 a4) where
     liftHashWithSalt = defaultLiftHashWithSalt
@@ -635,15 +647,18 @@ instance (Hashable a1, Hashable a2, Hashable a3)
     liftHashWithSalt2 h1 h2 s (a1, a2, a3, a4, a5) =
       (s `hashWithSalt` a1 `hashWithSalt` a2
          `hashWithSalt` a3) `h1` a4 `h2` a5
-
+-}
 
 instance (Hashable a1, Hashable a2, Hashable a3, Hashable a4, Hashable a5,
           Hashable a6) => Hashable (a1, a2, a3, a4, a5, a6) where
     hash (a1, a2, a3, a4, a5, a6) =
         hash a1 `hashWithSalt` a2 `hashWithSalt` a3
         `hashWithSalt` a4 `hashWithSalt` a5 `hashWithSalt` a6
-    hashWithSalt = hashWithSalt1
+    hashWithSalt s (a1, a2, a3, a4, a5, a6) =
+        s `hashWithSalt` a1 `hashWithSalt` a2 `hashWithSalt` a3
+        `hashWithSalt` a4 `hashWithSalt` a5 `hashWithSalt` a6
 
+{-
 instance (Hashable a1, Hashable a2, Hashable a3, Hashable a4,
           Hashable a5) => Hashable1 ((,,,,,) a1 a2 a3 a4 a5) where
     liftHashWithSalt = defaultLiftHashWithSalt
@@ -653,7 +668,7 @@ instance (Hashable a1, Hashable a2, Hashable a3,
     liftHashWithSalt2 h1 h2 s (a1, a2, a3, a4, a5, a6) =
       (s `hashWithSalt` a1 `hashWithSalt` a2 `hashWithSalt` a3
          `hashWithSalt` a4) `h1` a5 `h2` a6
-
+-}
 
 instance (Hashable a1, Hashable a2, Hashable a3, Hashable a4, Hashable a5,
           Hashable a6, Hashable a7) =>
@@ -665,6 +680,7 @@ instance (Hashable a1, Hashable a2, Hashable a3, Hashable a4, Hashable a5,
         s `hashWithSalt` a1 `hashWithSalt` a2 `hashWithSalt` a3
         `hashWithSalt` a4 `hashWithSalt` a5 `hashWithSalt` a6 `hashWithSalt` a7
 
+{-
 instance (Hashable a1, Hashable a2, Hashable a3, Hashable a4, Hashable a5, Hashable a6) => Hashable1 ((,,,,,,) a1 a2 a3 a4 a5 a6) where
     liftHashWithSalt = defaultLiftHashWithSalt
 
@@ -673,6 +689,7 @@ instance (Hashable a1, Hashable a2, Hashable a3, Hashable a4,
     liftHashWithSalt2 h1 h2 s (a1, a2, a3, a4, a5, a6, a7) =
       (s `hashWithSalt` a1 `hashWithSalt` a2 `hashWithSalt` a3
          `hashWithSalt` a4 `hashWithSalt` a5) `h1` a6 `h2` a7
+-}
 
 instance Hashable (StableName a) where
     hash = hashStableName
@@ -871,8 +888,9 @@ instance Hashable Version where
 instance Hashable (Fixed a) where
     hashWithSalt salt (MkFixed i) = hashWithSalt salt i
 -- Using hashWithSalt1 would cause needless constraint
-instance Hashable1 Fixed where
-    liftHashWithSalt _ salt (MkFixed i) = hashWithSalt salt i
+-- TODO: will be in base-orphans-0.8.5
+-- instance Hashable1 Fixed where
+--     liftHashWithSalt _ salt (MkFixed i) = hashWithSalt salt i
 #else
 instance Hashable (Fixed a) where
     hashWithSalt salt x = hashWithSalt salt (unsafeCoerce x :: Integer)
@@ -917,13 +935,13 @@ instance Hashable a => Hashable (Min a) where
     hashWithSalt p (Min a) = hashWithSalt p a
 
 -- | @since 1.3.1.0
-instance Hashable1 Min where liftHashWithSalt h salt (Min a) = h salt a
+-- instance Hashable1 Min where liftHashWithSalt h salt (Min a) = h salt a
 
 instance Hashable a => Hashable (Max a) where
     hashWithSalt p (Max a) = hashWithSalt p a
 
 -- | @since 1.3.1.0
-instance Hashable1 Max where liftHashWithSalt h salt (Max a) = h salt a
+-- instance Hashable1 Max where liftHashWithSalt h salt (Max a) = h salt a
 
 -- | __Note__: Prior to @hashable-1.3.0.0@ the hash computation included the second argument of 'Arg' which wasn't consistent with its 'Eq' instance.
 --
@@ -935,26 +953,26 @@ instance Hashable a => Hashable (First a) where
     hashWithSalt p (First a) = hashWithSalt p a
 
 -- | @since 1.3.1.0
-instance Hashable1 First where liftHashWithSalt h salt (First a) = h salt a
+-- instance Hashable1 First where liftHashWithSalt h salt (First a) = h salt a
 
 instance Hashable a => Hashable (Last a) where
     hashWithSalt p (Last a) = hashWithSalt p a
 
 -- | @since 1.3.1.0
-instance Hashable1 Last where liftHashWithSalt h salt (Last a) = h salt a
+-- instance Hashable1 Last where liftHashWithSalt h salt (Last a) = h salt a
 
 instance Hashable a => Hashable (WrappedMonoid a) where
     hashWithSalt p (WrapMonoid a) = hashWithSalt p a
 
 -- | @since 1.3.1.0
-instance Hashable1 WrappedMonoid where liftHashWithSalt h salt (WrapMonoid a) = h salt a
+-- instance Hashable1 WrappedMonoid where liftHashWithSalt h salt (WrapMonoid a) = h salt a
 
 #if !MIN_VERSION_base(4,16,0)
 instance Hashable a => Hashable (Option a) where
     hashWithSalt p (Option a) = hashWithSalt p a
 
 -- | @since 1.3.1.0
-instance Hashable1 Option where liftHashWithSalt h salt (Option a) = liftHashWithSalt h salt a
+-- instance Hashable1 Option where liftHashWithSalt h salt (Option a) = liftHashWithSalt h salt a
 #endif
 #endif
 
@@ -1006,7 +1024,7 @@ instance Show a => Show (Hashed a) where
   showsPrec d (Hashed a _) = showParen (d > 10) $
     showString "hashed" . showChar ' ' . showsPrec 11 a
 
-instance Hashable (Hashed a) where
+instance Eq a => Hashable (Hashed a) where
   hashWithSalt = defaultHashWithSalt
   hash (Hashed _ h) = h
 

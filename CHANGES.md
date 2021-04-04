@@ -1,5 +1,9 @@
 See also https://pvp.haskell.org/faq
 
+## Version 1.4.0.0
+
+ * `Eq` is now a superclass of `Hashable`.
+
 ## Version 1.3.3.0
 
  * `Text` hashing uses 64-bit FNV prime
