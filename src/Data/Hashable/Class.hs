@@ -170,7 +170,7 @@ import GHC.Natural (Natural(..))
 #endif
 #endif
 
-import Data.Functor.Classes (Eq1(..),Ord1(..),Show1(..),showsUnaryWith)
+import Data.Functor.Classes (Eq1(..),Ord1(..),Show1(..))
 
 #if MIN_VERSION_base(4,9,0)
 import qualified Data.List.NonEmpty as NE
@@ -195,6 +195,10 @@ import System.IO.Unsafe (unsafePerformIO)
 
 #ifdef VERSION_base_orphans
 import Data.Orphans ()
+#endif
+
+#ifdef VERSION_transformers_compat
+import Control.Monad.Trans.Instances ()
 #endif
 
 #ifdef VERSION_ghc_bignum_orphans
@@ -896,6 +900,7 @@ instance Hashable (Fixed a) where
     hashWithSalt salt x = hashWithSalt salt (unsafeCoerce x :: Integer)
 #endif
 
+
 #if MIN_VERSION_base(4,8,0)
 instance Hashable a => Hashable (Identity a) where
     hashWithSalt = hashWithSalt1
@@ -1051,9 +1056,17 @@ mapHashed f (Hashed a _) = hashed (f a)
 traverseHashed :: (Hashable b, Functor f) => (a -> f b) -> Hashed a -> f (Hashed b)
 traverseHashed f (Hashed a _) = fmap hashed (f a)
 
+#if MIN_VERSION_base(4,9,0)
+#define LIFTED_FUNCTOR_CLASSES 1
+#elif defined(MIN_VERSION_transformers)
+#if !(MIN_VERSION_transformers(0,4,0)) || MIN_VERSION_transformers(0,5,0)
+#define LIFTED_FUNCTOR_CLASSES 1
+#endif
+#endif
+
 -- instances for @Data.Functor.Classes@ higher rank typeclasses
 -- in base-4.9 and onward.
-#if MIN_VERSION_base(4,9,0)
+#if LIFTED_FUNCTOR_CLASSES
 instance Eq1 Hashed where
   liftEq f (Hashed a ha) (Hashed b hb) = ha == hb && f a b
 
@@ -1061,5 +1074,10 @@ instance Ord1 Hashed where
   liftCompare f (Hashed a _) (Hashed b _) = f a b
 
 instance Show1 Hashed where
-  liftShowsPrec sp _ d (Hashed a _) = showsUnaryWith sp "hashed" d a
+  liftShowsPrec sp _ d (Hashed a _) = showParen (d > 10) $
+    showString "hashed " . sp 11 a
+#else
+instance Eq1 Hashed where eq1 = (==)
+instance Ord1 Hashed where compare1 = compare
+instance Show1 Hashed where showsPrec1 = showsPrec
 #endif

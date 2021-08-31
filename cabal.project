@@ -14,3 +14,5 @@ tests: True
 --    key-threshold: 3
 --
 -- active-repositories: hackage.haskell.org, head.hackage:override
+
+packages: /code/other-haskell/transformers-compat
