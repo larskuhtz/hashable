@@ -56,6 +56,7 @@ module Data.Hashable.Class
     -- * Caching hashes
     , Hashed
     , hashed
+    , hashedHash
     , unhashed
     , mapHashed
     , traverseHashed
@@ -891,10 +892,6 @@ instance Hashable Version where
 #if MIN_VERSION_base(4,7,0)
 instance Hashable (Fixed a) where
     hashWithSalt salt (MkFixed i) = hashWithSalt salt i
--- Using hashWithSalt1 would cause needless constraint
--- TODO: will be in base-orphans-0.8.5
--- instance Hashable1 Fixed where
---     liftHashWithSalt _ salt (MkFixed i) = hashWithSalt salt i
 #else
 instance Hashable (Fixed a) where
     hashWithSalt salt x = hashWithSalt salt (unsafeCoerce x :: Integer)
@@ -902,6 +899,7 @@ instance Hashable (Fixed a) where
 
 
 #if MIN_VERSION_base(4,8,0)
+-- TODO: make available on all base
 instance Hashable a => Hashable (Identity a) where
     hashWithSalt = hashWithSalt1
 instance Hashable1 Identity where
@@ -1018,6 +1016,10 @@ hashed a = Hashed a (hash a)
 unhashed :: Hashed a -> a
 unhashed (Hashed a _) = a
 
+-- | 'hash' has 'Eq' requirement.
+hashedHash :: Hashed a -> Int
+hashedHash (Hashed _ h) = h
+
 -- | Uses precomputed hash to detect inequality faster
 instance Eq a => Eq (Hashed a) where
   Hashed a ha == Hashed b hb = ha == hb && a == b
@@ -1031,7 +1033,8 @@ instance Show a => Show (Hashed a) where
 
 instance Eq a => Hashable (Hashed a) where
   hashWithSalt = defaultHashWithSalt
-  hash (Hashed _ h) = h
+  hash = hashedHash
+
 
 -- This instance is a little unsettling. It is unusal for
 -- 'liftHashWithSalt' to ignore its first argument when a
